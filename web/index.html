@@ -94,6 +94,16 @@
           </div>
         </aside>
       </section>
+      <section class="explainer">
+        <div class="section-title"><h2>What counts as slop</h2><span id="rule-total"></span></div>
+        <p class="explainer-lead">Twelve deterministic checks for code that performs doneness &mdash; the comment that describes the validation instead of doing it, the <code>catch</code> that files the error somewhere quiet, the config that moved in and started receiving mail. Every hit is a real line, quoted, with a weight you can see.</p>
+        <div id="rule-grid" class="rule-grid"></div>
+        <div class="scale">
+          <div class="scale-row" id="scale-row"></div>
+          <p class="scale-note">Score is weighted hits per thousand lines, so a big repository is not punished for being big. A single habit repeated forty times is charged once and then damped &mdash; one stylistic decision should not fail a codebase on its own.</p>
+        </div>
+        <p class="disclaimer"><strong>It cannot tell you who wrote the code.</strong> Nothing in source text reliably identifies an author, and anything claiming otherwise is guessing. What this measures is whether a codebase carries patterns that AI-assisted code carries more often. A human can write every one of them, and frequently does. Read the grade as a description of the code, never as an accusation about the person.</p>
+      </section>
     </main>
     <footer><span>grep with taste.</span><a href="https://github.com/debuu0007/slop-check">View source ↗</a></footer>
     <script type="module" src="/main.ts"></script>

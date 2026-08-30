@@ -376,4 +376,24 @@ async function copyCard() { const blob = await new Promise<Blob | null>((resolve
 $("#copy-card").addEventListener("click", copyCard);
 $("#post-card").addEventListener("click", async () => { if (!current) return; await copyCard(); const text = `my codebase got a ${current.grade} on slop-check ("${current.label}") — ${location.origin} (paste the card)`; window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer"); });
 
+/* ── Explainer ────────────────────────────────────────────────────────────────
+   Rendered from the rule registry rather than written out, so the page cannot
+   describe a rule set the scanner no longer has.                              */
+
+const GRADES = [
+  { grade: "A", range: "0–9", label: "Shipped by a human. Probably." },
+  { grade: "B", range: "10–24", label: "Some assembly required." },
+  { grade: "C", range: "25–44", label: "The code is doing its best." },
+  { grade: "D", range: "45–69", label: "This code is apologizing to you." },
+  { grade: "F", range: "70–100", label: "// TODO: write the actual product" },
+] as const;
+
+function renderExplainer() {
+  const ordered = rules.slice().sort((left, right) => right.weight - left.weight || left.displayName.localeCompare(right.displayName));
+  $("#rule-total").textContent = `${ordered.length} RULES · 0 MODELS`;
+  $("#rule-grid").innerHTML = ordered.map((rule) => `<article class="rule-card" data-tier="${tierFor(rule.weight)}"><div class="rule-card-body"><div class="rule-card-head"><b>${escapeHtml(rule.displayName)}</b><span>${rule.weight.toFixed(2)}</span></div><p>${escapeHtml(rule.why)}</p><code>${escapeHtml(rule.id)}</code></div></article>`).join("");
+  $("#scale-row").innerHTML = GRADES.map((entry) => `<div class="scale-cell"><b>${entry.grade}</b><span>${entry.range}</span><i>${escapeHtml(entry.label)}</i></div>`).join("");
+}
+
+renderExplainer();
 void hydrateHash();
