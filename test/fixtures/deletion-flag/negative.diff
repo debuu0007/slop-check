@@ -1,0 +1,7 @@
+diff --git a/src/names.ts b/src/names.ts
+index 1234567..7654321 100644
+--- a/src/names.ts
++++ b/src/names.ts
+@@ -1,2 +1 @@
+-const displayName = user.name;
+ return user.name;

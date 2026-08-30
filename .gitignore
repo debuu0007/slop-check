@@ -1,0 +1,12 @@
+node_modules/
+web-dist/
+coverage/
+.DS_Store
+
+# Local working documents. Kept out of history because this repository is
+# intended to go public, and deleting a file later does not remove it from
+# the commits that carried it.
+plan.md
+review.md
+CODEX_GOAL.md
+CODEX_REVIEW_GOAL.md

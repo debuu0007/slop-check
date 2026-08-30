@@ -1,0 +1,50 @@
+name: slop-check
+description: Score changed JavaScript, TypeScript, and Python for AI slop patterns.
+inputs:
+  fail-over:
+    description: Fail when the slop score is greater than or equal to this value.
+    required: false
+    default: "40"
+  serious:
+    description: Omit roast lines from the PR report.
+    required: false
+    default: "false"
+  token:
+    description: GitHub token used to update the sticky pull-request comment.
+    required: false
+    default: ""
+runs:
+  using: composite
+  steps:
+    - name: Analyze pull request diff
+      id: analyze
+      shell: bash
+      env:
+        BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        FAIL_OVER: ${{ inputs.fail-over }}
+        SERIOUS: ${{ inputs.serious }}
+      run: |
+        git diff "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/slop-check.diff"
+        args=(--diff --top 10)
+        if [ "$SERIOUS" = "true" ]; then args+=(--serious); fi
+        node "$GITHUB_ACTION_PATH/dist/cli.js" "${args[@]}" < "$RUNNER_TEMP/slop-check.diff" > "$RUNNER_TEMP/slop-check-report.txt"
+        node "$GITHUB_ACTION_PATH/dist/cli.js" --diff --json < "$RUNNER_TEMP/slop-check.diff" > "$RUNNER_TEMP/slop-check-result.json"
+        node "$GITHUB_ACTION_PATH/scripts/action-annotations.mjs" "$RUNNER_TEMP/slop-check-result.json" "$SERIOUS"
+        score=$(node -e "const fs=require('fs'); process.stdout.write(String(JSON.parse(fs.readFileSync(process.argv[1])).score))" "$RUNNER_TEMP/slop-check-result.json")
+        echo "score=$score" >> "$GITHUB_OUTPUT"
+    - name: Update sticky pull request comment
+      if: github.event_name == 'pull_request'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.token || github.token }}
+        REPOSITORY: ${{ github.repository }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+      run: node "$GITHUB_ACTION_PATH/scripts/action-comment.mjs" "$RUNNER_TEMP/slop-check-report.txt"
+    - name: Enforce threshold
+      shell: bash
+      env:
+        SCORE: ${{ steps.analyze.outputs.score }}
+        FAIL_OVER: ${{ inputs.fail-over }}
+      run: |
+        node -e "if (Number(process.env.SCORE) >= Number(process.env.FAIL_OVER)) { console.error('slop-check score ' + process.env.SCORE + ' met fail-over threshold ' + process.env.FAIL_OVER); process.exit(1) }"

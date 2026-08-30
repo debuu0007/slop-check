@@ -1,0 +1,86 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`engine > produces stable JSON 1`] = `
+"{
+  "version": "1.1.0",
+  "score": 24,
+  "grade": "B",
+  "label": "Some assembly required.",
+  "filesScanned": 1,
+  "skippedFiles": 0,
+  "baselinedFindings": 0,
+  "suppressedFindings": 0,
+  "linesScanned": 2,
+  "effectiveKloc": 0.42,
+  "smallSampleFloorApplied": true,
+  "weightedHits": 0.1,
+  "rawWeightedHits": 0.1,
+  "findings": [
+    {
+      "ruleId": "apology-comments",
+      "displayName": "The Apology",
+      "path": "src/demo.ts",
+      "line": 1,
+      "snippet": "// placeholder implementation",
+      "weight": 0.1,
+      "why": "The code narrates the implementation it chose not to contain.",
+      "roast": "The comment has completed the task on the code's behalf."
+    }
+  ],
+  "groups": [
+    {
+      "ruleId": "apology-comments",
+      "displayName": "The Apology",
+      "path": "src/demo.ts",
+      "weight": 0.1,
+      "why": "The code narrates the implementation it chose not to contain.",
+      "count": 1,
+      "findings": [
+        {
+          "ruleId": "apology-comments",
+          "displayName": "The Apology",
+          "path": "src/demo.ts",
+          "line": 1,
+          "snippet": "// placeholder implementation",
+          "weight": 0.1,
+          "why": "The code narrates the implementation it chose not to contain.",
+          "roast": "The comment has completed the task on the code's behalf."
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "src/demo.ts",
+      "lines": 2,
+      "score": 24,
+      "findings": [
+        {
+          "ruleId": "apology-comments",
+          "displayName": "The Apology",
+          "path": "src/demo.ts",
+          "line": 1,
+          "snippet": "// placeholder implementation",
+          "weight": 0.1,
+          "why": "The code narrates the implementation it chose not to contain.",
+          "roast": "The comment has completed the task on the code's behalf."
+        }
+      ]
+    }
+  ],
+  "ruleHits": {
+    "apology-comments": 1,
+    "empty-catch": 0,
+    "swallowed-error": 0,
+    "any-flood": 0,
+    "hardcoded-config": 0,
+    "duplicate-helper": 0,
+    "happy-path-only": 0,
+    "dead-defaults": 0,
+    "deletion-flag": 0,
+    "debug-residue": 0,
+    "enhancement-theater": 0,
+    "phantom-import": 0
+  }
+}"
+`;

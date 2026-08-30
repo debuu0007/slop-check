@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Catch the patterns AI code uses to look finished without being finished." />
+    <title>slop-check — grep with taste</title>
+  </head>
+  <body>
+    <main>
+      <header class="hero">
+        <a class="brand" href="#">slop-check</a>
+        <div class="eyebrow"><i></i> ZERO AI · ZERO UPLOADS · ALL RECEIPTS</div>
+        <h1>Your code says<br />it’s <em>finished.</em><br />Let’s verify.</h1>
+        <p>Deterministic checks for the patterns AI-generated code uses to perform doneness. Runs entirely in your browser.</p>
+      </header>
+
+      <section class="scanner" aria-labelledby="scanner-title">
+        <div class="window-bar"><span></span><span></span><span></span><code>~/your-repo $ slop-check</code></div>
+        <h2 id="scanner-title" class="sr-only">Scan code</h2>
+        <div class="tabs" role="tablist">
+          <button class="tab active" data-mode="diff" role="tab">Paste diff</button>
+          <button class="tab" data-mode="files" role="tab">Drop files</button>
+          <button class="tab" data-mode="github" role="tab">GitHub URL</button>
+        </div>
+        <div class="input-panel" id="diff-panel">
+          <textarea id="diff-input" spellcheck="false" placeholder="diff --git a/src/api.ts b/src/api.ts&#10;@@ -10,0 +11,2 @@&#10;+// In a real implementation, validate this&#10;+fetch(url)"></textarea>
+        </div>
+        <div class="input-panel hidden drop-zone" id="files-panel">
+          <input id="file-input" type="file" multiple accept=".js,.jsx,.mjs,.cjs,.ts,.tsx,.mts,.cts,.py" />
+          <label for="file-input"><strong>Drop source files here</strong><br /><span>or choose JS, TS, and Python files</span></label>
+          <div id="file-summary"></div>
+        </div>
+        <div class="input-panel hidden github-panel" id="github-panel">
+          <label for="github-input">Public repository or pull request URL</label>
+          <input id="github-input" type="url" placeholder="https://github.com/owner/repo or /pull/123" />
+          <small>Fetched directly from GitHub by your browser. Large repositories are capped at 100 source files.</small>
+        </div>
+        <div class="scan-row">
+          <span id="status">Nothing leaves this tab.</span>
+          <button id="scan-button" class="primary">RUN THE RECEIPTS <b>↵</b></button>
+        </div>
+      </section>
+
+      <section id="scan-progress" class="scan-progress hidden" aria-live="polite" aria-busy="true">
+        <div class="scan-spinner" aria-hidden="true"><i></i><i></i><i></i></div>
+        <div>
+          <span id="scan-kicker">ANALYSIS IN PROGRESS</span>
+          <strong id="scan-phase">Preparing source files…</strong>
+          <p id="scan-progress-detail">No score is calculated until the scan is complete.</p>
+        </div>
+      </section>
+
+      <section id="results" class="results hidden" aria-live="polite">
+        <div class="report-card">
+          <div class="score-block"><span>SLOP SCORE</span><strong id="score">0</strong><small>/ 100</small></div>
+          <div class="grade-block"><span>GRADE</span><strong id="grade">A</strong><p id="label"></p></div>
+          <div class="meter"><i id="meter-fill"></i></div>
+          <div class="report-meta"><span id="scan-meta"></span><span id="worst-file"></span></div>
+          <div id="score-explain" class="score-explain"></div>
+        </div>
+        <div class="findings-column">
+          <div class="section-title">
+            <h2>The receipts</h2>
+            <div class="receipt-controls">
+              <span id="finding-count"></span>
+              <div class="view-toggle" role="group" aria-label="Receipt view">
+                <button id="view-deck" class="view-tab active" data-view="deck" aria-pressed="true">Deck</button>
+                <button id="view-list" class="view-tab" data-view="list" aria-pressed="false">List</button>
+              </div>
+            </div>
+          </div>
+          <div id="rule-summary" class="rule-summary"></div>
+          <div id="deck-view">
+            <div id="deck" class="deck" tabindex="0" role="application" aria-label="Receipt deck. Press left arrow to accept a finding, right arrow to dispute it, and Z to undo."></div>
+            <div class="deck-actions">
+              <button id="plead-guilty" class="verdict-button guilty">&#9664; Fair hit</button>
+              <button id="deck-undo" class="deck-undo" disabled>Undo</button>
+              <button id="plead-dispute" class="verdict-button dispute">False positive &#9654;</button>
+            </div>
+            <p class="deck-hint"><span id="deck-progress"></span> &middot; drag the card, or use &#8592; &#8594; and Z</p>
+            <div id="deck-verdict" class="deck-verdict hidden"></div>
+          </div>
+          <div id="findings" class="hidden"></div>
+        </div>
+        <aside class="share-column">
+          <div class="section-title"><h2>Post your grade</h2></div>
+          <canvas id="share-card" width="1200" height="630"></canvas>
+          <label class="toggle"><input id="confession" type="checkbox" /><span></span> Confession mode</label>
+          <div class="share-actions">
+            <button id="download-card">Download PNG</button>
+            <button id="copy-card" class="primary">Copy card</button>
+            <button id="post-card">Post this ↗</button>
+          </div>
+        </aside>
+      </section>
+    </main>
+    <footer><span>grep with taste.</span><a href="https://github.com/debuu0007/slop-check">View source ↗</a></footer>
+    <script type="module" src="/main.ts"></script>
+  </body>
+</html>

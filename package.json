@@ -1,0 +1,47 @@
+{
+  "name": "slop-check",
+  "version": "1.1.0",
+  "description": "Deterministic, offline detection of AI code-deception patterns.",
+  "type": "module",
+  "bin": {
+    "slop-check": "dist/cli.js"
+  },
+  "exports": {
+    ".": "./dist/index.js",
+    "./rules": "./dist/rules/index.js"
+  },
+  "files": [
+    "dist",
+    "action.yml",
+    "scripts",
+    "assets",
+    "slop-check.svg",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "node scripts/write-version.mjs && tsc -p tsconfig.json",
+    "build:web": "vite build",
+    "typecheck:web": "tsc -p tsconfig.web.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "npm run build && npm test && npm run typecheck:web && npm run build:web"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "ai",
+    "linter",
+    "code-review",
+    "cli",
+    "static-analysis"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.5",
+    "vitest": "^2.1.8"
+  }
+}
