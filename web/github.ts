@@ -31,7 +31,15 @@ const BLOB_CACHE = "slop-check-blobs-v1";
 export async function fetchWithTimeout(input: string, init: RequestInit = {}, timeout = 12_000): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
-  try { return await fetch(input, { ...init, signal: controller.signal }); }
+  // A caller's signal has to survive the timeout signal rather than be replaced
+  // by it, or a cancelled scan keeps fetching until each request times out on
+  // its own. `AbortSignal.any` composes the two. The fallback only runs on
+  // browsers older than it, none of which implement WebMCP either, so it takes
+  // the caller's cancellation over the timeout rather than dropping both.
+  const signal = init.signal && typeof AbortSignal.any === "function"
+    ? AbortSignal.any([init.signal, controller.signal])
+    : init.signal ?? controller.signal;
+  try { return await fetch(input, { ...init, signal }); }
   finally { clearTimeout(timer); }
 }
 
@@ -104,14 +112,14 @@ export interface GithubSource {
   complete?: boolean;
 }
 
-export async function githubFiles(url: string, progress: (message: string) => void): Promise<GithubSource> {
+export async function githubFiles(url: string, progress: (message: string) => void, signal?: AbortSignal): Promise<GithubSource> {
   const parsed = new URL(url);
   const parts = parsed.pathname.split("/").filter(Boolean);
   if (parsed.hostname !== "github.com" || parts.length < 2) throw new Error("Enter a public github.com repository or pull request URL.");
   const [owner, repository] = parts;
 
   if (parts[2] === "pull" && parts[3]) {
-    const response = await fetchWithTimeout(`https://api.github.com/repos/${owner}/${repository}/pulls/${parts[3]}`, { headers: { Accept: "application/vnd.github.v3.diff" } });
+    const response = await fetchWithTimeout(`https://api.github.com/repos/${owner}/${repository}/pulls/${parts[3]}`, { headers: { Accept: "application/vnd.github.v3.diff" }, signal });
     if (!response.ok) throw new Error(`GitHub returned ${response.status}. The repository may be private or rate-limited.`);
     return { diff: await response.text(), skipped: 0 };
   }
@@ -120,7 +128,7 @@ export async function githubFiles(url: string, progress: (message: string) => vo
   // /repos/:owner/:repo just to read default_branch - and spends one instead of two
   // of the 60 anonymous API calls GitHub allows per hour.
   const branch = parts[2] === "tree" && parts[3] ? parts.slice(3).join("/") : "HEAD";
-  const treeResponse = await fetchWithTimeout(`https://api.github.com/repos/${owner}/${repository}/git/trees/${encodeURIComponent(branch)}?recursive=1`, { headers: { Accept: "application/vnd.github+json" } });
+  const treeResponse = await fetchWithTimeout(`https://api.github.com/repos/${owner}/${repository}/git/trees/${encodeURIComponent(branch)}?recursive=1`, { headers: { Accept: "application/vnd.github+json" }, signal });
   if (!treeResponse.ok) throw new Error(`Could not read the repository tree (${treeResponse.status}). It may be private, missing, or rate-limited.`);
   const tree = await treeResponse.json();
 
@@ -152,7 +160,7 @@ export async function githubFiles(url: string, progress: (message: string) => vo
   const fetched = await pooled(candidates, FETCH_CONCURRENCY, async (item) => {
     const cdnPath = item.path.split("/").map(encodeURIComponent).join("/");
     try {
-      const content = await cachedText(item.sha, () => fetchWithTimeout(`${base}/${cdnPath}`));
+      const content = await cachedText(item.sha, () => fetchWithTimeout(`${base}/${cdnPath}`, { signal }));
       if (content === undefined) { skipped += 1; return undefined; }
       return { path: item.path, content };
     } catch {

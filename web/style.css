@@ -140,3 +140,16 @@ footer{display:flex;justify-content:space-between;width:min(1180px,calc(100% - 4
 .disclaimer { max-width:760px; margin:30px 0 0; padding:18px 20px; border-left:2px solid var(--yellow); background:#00000044; color:#9aa096; font:11px/1.75 "DM Mono",monospace; }
 .disclaimer strong { color:var(--yellow); }
 @media(max-width:760px){ .scale-row{grid-template-columns:1fr 1fr} .explainer{padding-bottom:60px} }
+
+/* ── Agent tools ─────────────────────────────────────────────────────────── */
+.agents .section-title span { padding:5px 10px; border:1px solid var(--line); border-radius:20px; letter-spacing:.12em; }
+.agents .section-title span[data-state="on"] { border-color:#3f6a28; background:#a3ff620e; color:var(--green); }
+.agents .section-title span[data-state="off"] { color:#7e837b; }
+.agent-tool-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(268px,1fr)); gap:11px; margin-top:22px; }
+.agent-tool { border:1px solid var(--line); border-left:2px solid #343a33; background:var(--panel); padding:15px 17px; }
+.agent-tool[data-live="true"] { border-left-color:var(--green); }
+.agent-tool-head { display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:9px; }
+.agent-tool-head code { color:var(--ink); font:500 13px "DM Mono",monospace; }
+.agent-tool[data-live="true"] .agent-tool-head code { color:var(--green); }
+.agent-tool-head span { color:#6f746d; font:10px "DM Mono",monospace; letter-spacing:.08em; white-space:nowrap; }
+.agent-tool p { margin:0; color:#8f958c; font:11px/1.65 "DM Mono",monospace; }

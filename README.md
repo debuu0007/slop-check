@@ -212,6 +212,32 @@ npm run build:web
 
 Deploys to Vercel as configured in [`vercel.json`](./vercel.json), or publish `web-dist/` to any static host. The share card reads its own origin, so no domain is hardcoded.
 
+## WebMCP — bring your own agent
+
+The web app is a [WebMCP](https://webmachinelearning.github.io/webmcp/) host. It registers its own features as agent-callable tools with `document.modelContext.registerTool()`, so an agent in ChatGPT's browser or Chrome 149+ can scan a repository, read the receipts and explain a rule — while the verdict on each finding stays with the person.
+
+The split is the point. Finding the patterns is mechanical; deciding whether a hit is a fair cop or a false positive needs someone who knows why the code is that way. The agent does the first half. You do the second.
+
+| Tool | Registered | Does |
+| --- | --- | --- |
+| `list_rules` | always | Every rule with its weight and rationale. No scan needed. |
+| `explain_rule` | always | One rule: what it detects, why it counts, how to suppress it. |
+| `scan_repository` | always | Scans a public repo, branch, or PR URL. |
+| `scan_diff` | always | Scans a unified diff; only changed lines are scored. |
+| `list_findings` | after a scan | Grouped findings with real quoted lines, filterable and paged. |
+| `judge_finding` | after a scan | Records `guilty` or `dispute` — moves the actual card on the page. |
+| `export_suppressions` | after a scan | `slop-disable` directives for everything disputed. |
+
+Three properties are deliberate:
+
+- **One shared state.** The tools are handed the same functions the buttons call ([`web/main.ts`](./web/main.ts) builds the handle; [`web/webmcp.ts`](./web/webmcp.ts) registers it). A tool-driven scan fills the visible input, flips the visible tab and runs the visible progress panel; `judge_finding` moves the real card. There is no path for an agent to reach a result the page is not showing.
+- **The tool set is live.** The three scan-dependent tools are registered when a result lands and unregistered when it is cleared, via the `AbortSignal` that `registerTool` accepts. An agent reading the tool list reads the page's actual state, and `toolchange` tells it when that moved.
+- **Honest annotations.** Anything that can echo code from a scanned repository is marked `untrustedContentHint` — a scanned repo can contain a comment written to be read as an instruction. Tools that only read carry `readOnlyHint`.
+
+To try it locally, enable `chrome://flags/#enable-webmcp-testing` in Chrome 149+, reload, and open **Site tools** in the address bar. In ChatGPT's browser it works with no flag. Note that anonymous GitHub API access is 60 requests per hour per IP, and a repository scan spends one.
+
+The tool layer is covered by [`test/webmcp.test.ts`](./test/webmcp.test.ts), including the registration lifecycle against a stand-in model context.
+
 ## PR a rule in one file
 
 Seen a new AI tell? Add one pure rule module under `src/rules/` and one line to `src/rules/index.ts`. A rule exports `id`, `displayName`, `weight`, `why`, `roasts`, and:

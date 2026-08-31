@@ -2,10 +2,19 @@ import "./style.css";
 import { rules, type AnalysisResult, type Finding, type FindingGroup, type SourceFile } from "../src/index.js";
 import { VERSION } from "../src/generated-version.js";
 import { githubFiles } from "./github.js";
+import { registerAgentTools, type DeckCard, type ScanMode } from "./webmcp.js";
 
 const $ = <T extends HTMLElement>(selector: string) => document.querySelector<T>(selector)!;
 const tabs = [...document.querySelectorAll<HTMLButtonElement>(".tab")];
-let mode = "diff";
+let mode: ScanMode = "diff";
+
+/**
+ * Broadcast whenever a result appears or is cleared. The WebMCP layer listens so
+ * that the tools it offers describe the page as it actually is - an event rather
+ * than a direct call because the scan can start from a click or from a tool, and
+ * neither should have to know the other exists.
+ */
+function announceState() { document.dispatchEvent(new CustomEvent("slop-check:state")); }
 let droppedFiles: SourceFile[] = [];
 let current: AnalysisResult | undefined;
 const analysisWorker = new Worker(new URL("./worker.ts", import.meta.url), { type: "module" });
@@ -24,11 +33,18 @@ function analyze(payload: { diff?: string; files?: SourceFile[]; skippedFiles?: 
   });
 }
 
-for (const tab of tabs) tab.addEventListener("click", () => {
-  mode = tab.dataset.mode ?? "diff";
-  tabs.forEach((item) => item.classList.toggle("active", item === tab));
-  for (const name of ["diff", "files", "github"]) $(`#${name}-panel`).classList.toggle("hidden", name !== mode);
-});
+/**
+ * Named rather than inlined into the tab handler because an agent switching the
+ * scanner to a repository scan has to move the visible tab with it. A tool that
+ * quietly scanned in a mode the page was not showing would leave the human
+ * looking at an input that had nothing to do with the result.
+ */
+function setMode(next: ScanMode) {
+  mode = next;
+  tabs.forEach((item) => item.classList.toggle("active", item.dataset.mode === next));
+  for (const name of ["diff", "files", "github"]) $(`#${name}-panel`).classList.toggle("hidden", name !== next);
+}
+for (const tab of tabs) tab.addEventListener("click", () => setMode((tab.dataset.mode as ScanMode) ?? "diff"));
 
 const dropZone = $("#files-panel");
 const fileInput = $("#file-input") as HTMLInputElement;
@@ -49,6 +65,7 @@ function escapeHtml(value: string) { return value.replace(/[&<>"']/g, (character
 
 async function render(result: AnalysisResult, writeHash = true) {
   current = result;
+  announceState();
   $("#results").classList.remove("hidden");
   $("#score").textContent = String(result.score);
   $("#grade").textContent = result.grade;
@@ -249,6 +266,55 @@ function undo() {
   drawCard();
 }
 
+/**
+ * A group's address. `groupFindings` already keys on exactly this pair, so it is
+ * stable across a rescan of the same input and needs nothing stored alongside it.
+ */
+export function groupId(group: FindingGroup) { return `${group.ruleId}:${group.path}`; }
+
+/**
+ * Brings an undecided card to the front so it can be judged out of order, which
+ * an agent asking about one specific rule invariably wants to do. The deck's
+ * order is a sampling artefact of `sampleGroups`, not meaning, so swapping two
+ * entries costs nothing - and swapping the rendered contents rather than
+ * re-rendering the stack keeps every card already on its way out undisturbed.
+ */
+function swapToFront(index: number) {
+  if (index === cursor) return;
+  const nodes = cards();
+  const [front, target] = [nodes[cursor], nodes[index]];
+  [deck[cursor], deck[index]] = [deck[index], deck[cursor]];
+  const markup = front.innerHTML;
+  front.innerHTML = target.innerHTML;
+  target.innerHTML = markup;
+  for (const attribute of ["aria-label", "data-tier"]) {
+    const held = front.getAttribute(attribute) ?? "";
+    front.setAttribute(attribute, target.getAttribute(attribute) ?? "");
+    target.setAttribute(attribute, held);
+  }
+}
+
+/**
+ * The single judging entry point. The buttons, the keyboard, the swipe and the
+ * agent's `judge_finding` tool all end here, so a verdict reached any of those
+ * ways moves the same card and lands in the same tally.
+ */
+function judgeGroup(id: string | undefined, verdict: Verdict): FindingGroup {
+  if (!deck.length) throw new Error("No deck to judge. Run a scan first.");
+  if (cursor >= deck.length) throw new Error(`Every card in this deck has been judged. ${deck.length} group${deck.length === 1 ? "" : "s"} decided.`);
+  if (id) {
+    const index = deck.findIndex((group, position) => position >= cursor && groupId(group) === id);
+    if (index === -1) {
+      const pending = deck.slice(cursor).map(groupId).join(", ");
+      throw new Error(`No undecided card with id "${id}". Still to judge: ${pending || "none"}.`);
+    }
+    swapToFront(index);
+  }
+  const group = deck[cursor];
+  decide(verdict);
+  return group;
+}
+
 /** `#` for Python, `//` everywhere else the scanner accepts. */
 function directive(finding: Finding) { return `${finding.path.toLowerCase().endsWith(".py") ? "#" : "//"} slop-disable-next-line ${finding.ruleId}`; }
 
@@ -334,12 +400,32 @@ function setView(view: string) {
 }
 for (const tab of document.querySelectorAll<HTMLButtonElement>(".view-tab")) tab.addEventListener("click", () => setView(tab.dataset.view ?? "deck"));
 
-$("#scan-button").addEventListener("click", async () => {
+export interface ScanRequest {
+  mode?: ScanMode;
+  /** Diff text or repository URL. Written into the visible input before scanning. */
+  value?: string;
+  signal?: AbortSignal;
+}
+
+/**
+ * Every scan the page can perform, from either operator. The agent's scan tools
+ * call this rather than reimplementing the flow, so a tool-driven scan gets the
+ * same progress panel, the same error surface and the same rendered result a
+ * click does - and the human watching sees a page that visibly did the work,
+ * not one that silently changed its mind.
+ */
+async function runScan(request: ScanRequest = {}): Promise<AnalysisResult> {
   const status = $("#status");
   const button = $("#scan-button") as HTMLButtonElement;
   const progressPanel = $("#scan-progress");
   const setProgress = (phase: string, detail: string) => { $("#scan-phase").textContent = phase; $("#scan-progress-detail").textContent = detail; status.textContent = detail; };
+  if (request.mode) setMode(request.mode);
+  if (request.value !== undefined) {
+    if (mode === "diff") ($("#diff-input") as HTMLTextAreaElement).value = request.value;
+    else if (mode === "github") ($("#github-input") as HTMLInputElement).value = request.value;
+  }
   current = undefined;
+  announceState();
   $("#results").classList.add("hidden");
   progressPanel.classList.remove("hidden", "scan-error");
   $("#scan-kicker").textContent = "ANALYSIS IN PROGRESS";
@@ -353,7 +439,7 @@ $("#scan-button").addEventListener("click", async () => {
     else if (mode === "files") { if (!droppedFiles.length) throw new Error("Choose at least one source file."); setProgress(`Analyzing ${droppedFiles.length} source files…`, "The rules are running in your browser. No score exists yet."); result = await analyze({ files: droppedFiles }); }
     else {
       setProgress("Reading the repository…", "Listing source files from GitHub.");
-      const fetched = await githubFiles(($("#github-input") as HTMLInputElement).value, (message) => setProgress("Fetching source files…", message));
+      const fetched = await githubFiles(($("#github-input") as HTMLInputElement).value, (message) => setProgress("Fetching source files…", message), request.signal);
       const count = fetched.files?.length ?? 1;
       setProgress(`Analyzing ${count} source file${count === 1 ? "" : "s"}…`, `${fetched.skipped} file${fetched.skipped === 1 ? " was" : "s were"} skipped or unavailable.${fetched.note ? ` ${fetched.note}` : ""} No score exists yet.`);
       result = await analyze({ diff: fetched.diff, files: fetched.files, skippedFiles: fetched.skipped, completeRepository: fetched.complete, knownPaths: fetched.knownPaths });
@@ -361,15 +447,25 @@ $("#scan-button").addEventListener("click", async () => {
     progressPanel.classList.add("hidden");
     await render(result);
     status.textContent = `Complete · ${result.findings.length} finding${result.findings.length === 1 ? "" : "s"} with file and line receipts.`;
+    return result;
   } catch (error) {
     progressPanel.classList.add("scan-error");
     $("#scan-kicker").textContent = "SCAN FAILED";
     setProgress("No score was produced.", `${(error as Error).message} You can retry without reloading the page.`);
+    // The panel is for the human; the throw is for the agent, which otherwise
+    // reads a failed scan as a successful one that found nothing.
+    throw error;
   } finally {
     button.disabled = false;
     button.innerHTML = "RUN THE RECEIPTS <b>↵</b>";
   }
-});
+}
+// runScan has already put the failure on screen and rethrown it for the agent's
+// benefit; the click path has nothing left to do but keep the rejection from
+// being unhandled. Suppressed rather than quietly written, because the scanner is
+// right that a bare catch usually is a bug.
+// slop-disable-next-line swallowed-error
+$("#scan-button").addEventListener("click", () => { void runScan().catch(() => {}); });
 $("#confession").addEventListener("change", drawCard);
 $("#download-card").addEventListener("click", () => { const anchor = document.createElement("a"); anchor.download = `slop-check-${current?.grade ?? "grade"}.png`; anchor.href = ($("#share-card") as HTMLCanvasElement).toDataURL("image/png"); anchor.click(); });
 async function copyCard() { const blob = await new Promise<Blob | null>((resolve) => ($("#share-card") as HTMLCanvasElement).toBlob(resolve)); if (!blob) return; await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]); $("#copy-card").textContent = "Copied"; }
@@ -396,4 +492,57 @@ function renderExplainer() {
 }
 
 renderExplainer();
+
+/* ── Agent tools ──────────────────────────────────────────────────────────────
+   The WebMCP layer is handed the same functions the buttons call. It owns no
+   state of its own, so there is no way for an agent to reach a result the page
+   is not showing, or to record a verdict the deck does not reflect.           */
+
+function deckState() {
+  const cards: DeckCard[] = deck.map((group, index) => ({
+    id: groupId(group),
+    ruleId: group.ruleId,
+    displayName: group.displayName,
+    path: group.path,
+    count: group.count,
+    weight: group.weight,
+    verdict: verdicts[index],
+  }));
+  return { cards, judged: cursor, pending: Math.max(0, deck.length - cursor), overflow: deckOverflow };
+}
+
+const agentTools = registerAgentTools({
+  runScan,
+  currentResult: () => current,
+  judgeGroup,
+  disputedSnippet,
+  deckState,
+  groupId,
+});
+
+function renderAgentTools() {
+  const chip = $("#webmcp-status");
+  const count = agentTools.active().length;
+  chip.dataset.state = agentTools.supported ? "on" : "off";
+  chip.textContent = agentTools.supported
+    ? `WEBMCP DETECTED · ${count} TOOL${count === 1 ? "" : "S"} REGISTERED`
+    : "WEBMCP NOT AVAILABLE IN THIS BROWSER";
+  $("#agent-tool-note").textContent = agentTools.supported
+    ? "An agent in this tab can already see these. Three of them appear only once a scan has produced something to talk about."
+    : "Open this page in ChatGPT's browser, or in Chrome 149+ with chrome://flags/#enable-webmcp-testing enabled, and an agent can drive everything below.";
+  $("#agent-tool-grid").innerHTML = agentTools.tools.map((tool) => {
+    const live = agentTools.active().includes(tool.name);
+    const badges = [
+      tool.phase === "after-scan" ? "after a scan" : "always on",
+      tool.annotations?.readOnlyHint ? "read-only" : "writes",
+    ];
+    return `<article class="agent-tool" data-live="${live}"><div class="agent-tool-head"><code>${escapeHtml(tool.name)}</code><span>${badges.join(" · ")}</span></div><p>${escapeHtml(tool.description)}</p></article>`;
+  }).join("");
+}
+
+// Re-rendered on `toolchange` so the page's own list can never claim a tool the
+// browser is not currently offering.
+document.addEventListener("slop-check:tools", renderAgentTools);
+renderAgentTools();
+
 void hydrateHash();
